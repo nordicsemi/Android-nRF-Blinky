@@ -63,4 +63,8 @@ dependencies {
     // [Hilt] Provided Metadata instance has version 2.4.0, while maximum supported version is 2.3.0.
     //        To support newer versions, update the kotlin-metadata-jvm library.
     ksp(libs.kotlin.metadata.jvm)
+
+    // Unit tests of the mock flavor use the simulated Blinky device.
+    "testMockImplementation"(libs.kotlin.junit)
+    "testMockImplementation"(libs.kotlinx.coroutines.test)
 }
