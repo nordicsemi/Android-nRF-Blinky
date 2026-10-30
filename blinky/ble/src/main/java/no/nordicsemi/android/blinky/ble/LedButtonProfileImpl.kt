@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import no.nordicsemi.android.blinky.spec.Blinky
 import no.nordicsemi.android.blinky.spec.BlinkySpec
+import no.nordicsemi.kotlin.ble.client.Peripheral
 import no.nordicsemi.kotlin.ble.client.Profile
 import no.nordicsemi.kotlin.ble.client.RemoteCharacteristic
 import no.nordicsemi.kotlin.ble.client.RemoteService
@@ -100,7 +101,7 @@ internal class LedButtonProfileImpl(
      */
     private lateinit var buttonCharacteristic: RemoteCharacteristic
 
-    override fun prepare(service: RemoteService) {
+    override fun prepare(peripheral: Peripheral<*, *>, service: RemoteService) {
         require(service.uuid == BlinkySpec.SERVICE_UUID) {
             "Unrecognized service UUID: ${service.uuid}"
         }
@@ -118,7 +119,7 @@ internal class LedButtonProfileImpl(
         }
     }
 
-    override suspend fun CoroutineScope.initialize() {
+    override suspend fun CoroutineScope.initialize(peripheral: Peripheral<*, *>) {
         // Read the initial state of the LED and Button and start the collectors in
         // a separate coroutine.
         launch(Dispatchers.IO) {

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.update
 import no.nordicsemi.android.blinky.spec.BlinkySpec
 import no.nordicsemi.kotlin.ble.client.mock.ConnectionResult
 import no.nordicsemi.kotlin.ble.client.mock.DisconnectionReason
+import no.nordicsemi.kotlin.ble.client.mock.MockPeripheral
 import no.nordicsemi.kotlin.ble.client.mock.PeripheralSpec
 import no.nordicsemi.kotlin.ble.client.mock.PeripheralSpecEventHandler
 import no.nordicsemi.kotlin.ble.client.mock.Proximity
@@ -19,7 +20,7 @@ import no.nordicsemi.kotlin.ble.core.CharacteristicProperty
 import no.nordicsemi.kotlin.ble.core.LegacyAdvertisingSetParameters
 import no.nordicsemi.kotlin.ble.core.OperationStatus
 import no.nordicsemi.kotlin.ble.core.Permission
-import no.nordicsemi.kotlin.ble.core.Phy
+import no.nordicsemi.kotlin.ble.core.PrimaryPhy
 import no.nordicsemi.kotlin.ble.core.and
 import no.nordicsemi.kotlin.ble.environment.android.mock.MockAndroidEnvironment
 import timber.log.Timber
@@ -76,27 +77,31 @@ private object BlinkyImpl: PeripheralSpecEventHandler, BlinkyState {
 
     // Event handlers implementation
 
-    override fun onConnectionRequest(preferredPhy: List<Phy>): ConnectionResult {
+    override fun onConnectionRequest(peripheral: MockPeripheral, phy: PrimaryPhy): ConnectionResult {
         Timber.i("[Blinky] Connection request received")
         return ConnectionResult.Accept
     }
 
-    override fun onConnectionLost(reason: DisconnectionReason) {
+    override fun onConnectionLost(peripheral: MockPeripheral, reason: DisconnectionReason) {
         Timber.i("[Blinky] Connection terminated: $reason")
     }
 
-    override fun onReset() {
+    override fun onReset(peripheral: MockPeripheral) {
         Timber.i("[Blinky] --- Booting up ---")
         _ledState.update { false }
         buttonState = false
     }
 
-    override fun onServiceDiscoveryRequest(uuids: List<Uuid>): ServiceDiscoveryResult {
+    override fun onServiceDiscoveryRequest(
+        peripheral: MockPeripheral,
+        uuids: List<Uuid>,
+    ): ServiceDiscoveryResult {
         Timber.i("[Blinky] Service discovery requested for UUIDs: $uuids")
-        return super.onServiceDiscoveryRequest(uuids)
+        return super.onServiceDiscoveryRequest(peripheral, uuids)
     }
 
     override fun onWriteRequest(
+        peripheral: MockPeripheral,
         characteristic: MockRemoteCharacteristic,
         value: ByteArray
     ): WriteResponse {
@@ -106,11 +111,18 @@ private object BlinkyImpl: PeripheralSpecEventHandler, BlinkyState {
         return WriteResponse.Success
     }
 
-    override fun onWriteCommand(characteristic: MockRemoteCharacteristic, value: ByteArray) {
-        val _ = onWriteRequest(characteristic, value)
+    override fun onWriteCommand(
+        peripheral: MockPeripheral,
+        characteristic: MockRemoteCharacteristic,
+        value: ByteArray,
+    ) {
+        val _ = onWriteRequest(peripheral, characteristic, value)
     }
 
-    override fun onReadRequest(characteristic: MockRemoteCharacteristic): ReadResponse =
+    override fun onReadRequest(
+        peripheral: MockPeripheral,
+        characteristic: MockRemoteCharacteristic,
+    ): ReadResponse =
         when (characteristic.instanceId) {
             buttonHandle -> ReadResponse.Success(buttonState.toBytes())
             ledHandle -> ReadResponse.Success(led.value.toBytes())
@@ -229,14 +241,20 @@ val hrm = PeripheralSpec.simulatePeripheral(
         maxAttMtu = 498,
         maxL2capMtu = 251,
         eventHandler = object : PeripheralSpecEventHandler {
-            override fun onConnectionRequest(preferredPhy: List<Phy>): ConnectionResult {
+            override fun onConnectionRequest(
+                peripheral: MockPeripheral,
+                phy: PrimaryPhy,
+            ): ConnectionResult {
                 Timber.i("[HRM] Connection request received")
-                return super.onConnectionRequest(preferredPhy)
+                return super.onConnectionRequest(peripheral, phy)
             }
 
-            override fun onConnectionLost(reason: DisconnectionReason) {
+            override fun onConnectionLost(
+                peripheral: MockPeripheral,
+                reason: DisconnectionReason,
+            ) {
                 Timber.i("[HRM] Connection terminated: $reason")
-                super.onConnectionLost(reason)
+                super.onConnectionLost(peripheral, reason)
             }
         },
     ) {
