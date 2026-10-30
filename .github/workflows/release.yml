@@ -130,3 +130,29 @@ jobs:
           echo "${{ secrets.API_KEY_FILE }}" > fastlane-api.json.asc
           gpg -d --passphrase "${{ secrets.API_KEY_FILE_PSWD }}" --batch fastlane-api.json.asc > fastlane-api.json
           bundle exec fastlane deployInternal dry_run:"$DRY_RUN"
+
+  github-release:
+    name: GitHub release
+    needs: deploy
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # Create the release, and generate the notes.
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Created only after the app was deployed. The release uses the tag pushed by the Tag
+      # stage, and its notes list the pull requests merged since the previous tag.
+      - shell: bash
+        run: |
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run: the release $RELEASE_VERSION is not created. Its notes would be:"
+            gh api --method POST "repos/${{ github.repository }}/releases/generate-notes" \
+              -f tag_name="$RELEASE_VERSION" -f target_commitish="${{ github.sha }}" --jq '.body' \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            # Versions with a suffix, e.g. 2.7.0-alpha01, are marked as pre-releases.
+            [[ "$RELEASE_VERSION" == *-* ]] && prerelease="--prerelease"
+            gh release create "$RELEASE_VERSION" --repo "${{ github.repository }}" \
+              --title "$RELEASE_VERSION" --generate-notes --verify-tag ${prerelease:-}
+          fi

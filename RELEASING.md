@@ -22,11 +22,14 @@ run shows which stage failed:
 3. **Tag.** Creates the tag `<version>` on the tested commit and pushes it.
 4. **Deploy.** Builds the signed app bundle of the `native` flavor from the tag and uploads it to the
    Internal track of Google Play using Fastlane (`bundle exec fastlane deployInternal`).
+5. **GitHub release.** Creates a GitHub release for the tag with auto-generated notes (the pull
+   requests merged since the previous tag), only after **Deploy** succeeded. A version with a suffix,
+   e.g. `2.7.0-alpha01`, is marked as a pre-release.
 
 Pushing a tag does not start the **Release** workflow, and the only way to release is to run it.
 
-After the workflow finished, check that **Deploy** succeeded and create a release on GitHub from the
-existing tag, with the release notes.
+After the workflow finished, check that **Deploy** succeeded. Edit the notes of the GitHub release if
+needed.
 
 ## Dry run
 
@@ -37,6 +40,7 @@ With **Dry run** ticked the workflow goes through all the stages, but nothing le
 3. **Tag** creates the tag locally, on the runner, and does not push it.
 4. **Deploy** builds and signs the app bundle, and Google Play only validates it (`validate_only`),
    nothing is uploaded.
+5. **GitHub release** does not create the release, but prints the release notes it would use.
 
 Use it to check a change of the release workflow, or the secrets, before a real release.
 
