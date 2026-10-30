@@ -2,16 +2,13 @@ package no.nordicsemi.android.blinky
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import no.nordicsemi.android.blinky.ble.BlinkyManager
 import no.nordicsemi.android.blinky.di.beacon
 import no.nordicsemi.android.blinky.di.blinky
@@ -23,12 +20,12 @@ import no.nordicsemi.kotlin.ble.client.android.CentralManager
 import no.nordicsemi.kotlin.ble.client.android.mock.MockCentralManager
 import no.nordicsemi.kotlin.ble.client.android.mock.mock
 import no.nordicsemi.kotlin.ble.environment.android.mock.MockAndroidEnvironment
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.seconds
 
@@ -36,17 +33,20 @@ import kotlin.time.Duration.Companion.seconds
  * Tests of [BlinkyManager] running against the simulated peripherals defined in the `mock`
  * flavor of the app (see `PeripheralSpecs.kt`).
  *
- * The tests use real time, as the manager works on [Dispatchers.IO].
+ * The tests use virtual time: the simulated peripherals run in the `backgroundScope` of the test
+ * and [BlinkyManager] inherits the test dispatcher instead of using `Dispatchers.IO`.
  */
 class BlinkyManagerTest {
-    private val timeout = 10.seconds
-
-    private lateinit var scope: CoroutineScope
     private lateinit var centralManager: MockCentralManager
 
     @Before
     fun setUp() {
-        scope = CoroutineScope(Dispatchers.Default + Job())
+        // The simulated Blinky is a singleton, make sure each test starts from the same state.
+        blinkyState.buttonState = false
+    }
+
+    /** Creates the central manager with simulated peripherals, running in the test's background. */
+    private fun TestScope.createCentralManager() {
         centralManager = CentralManager.mock(
             environment = MockAndroidEnvironment.Api31(
                 isBluetoothEnabled = true,
@@ -54,15 +54,10 @@ class BlinkyManagerTest {
                 isBluetoothScanPermissionGranted = true,
                 isNeverForLocationFlagSet = true,
             ),
-            scope = scope,
+            scope = backgroundScope,
         ).apply {
             simulatePeripherals(listOf(blinky, beacon, hrm))
         }
-    }
-
-    @After
-    fun tearDown() {
-        scope.cancel()
     }
 
     /**
@@ -72,30 +67,31 @@ class BlinkyManagerTest {
      * for, as the app does.
      */
     private suspend fun managerFor(identifier: String): BlinkyManager {
-        val peripheral = centralManager.scan(timeout)
+        val peripheral = centralManager.scan(timeout = 10.seconds)
             .first { it.peripheral.identifier == identifier }
             .peripheral
-        return BlinkyManager(centralManager, peripheral)
+        // Empty context: use the dispatcher of the test.
+        return BlinkyManager(centralManager, peripheral, context = EmptyCoroutineContext)
     }
 
     /**
      * Connects to the simulated Blinky, runs the [test] when the profile is ready and then
      * disconnects.
      */
-    private fun withBlinky(test: suspend CoroutineScope.(Blinky.State) -> Unit) = runBlocking {
-        withTimeout(timeout) {
-            val ready = CompletableDeferred<Blinky.State>()
-            val connection = scope.launch {
-                managerFor(BLINKY_ID).connect { state ->
-                    ready.complete(state)
-                    awaitCancellation()
-                }
+    private fun withBlinky(test: suspend CoroutineScope.(Blinky.State) -> Unit) = runTest {
+        createCentralManager()
+
+        val ready = CompletableDeferred<Blinky.State>()
+        val connection = launch {
+            managerFor(BLINKY_ID).connect { state ->
+                ready.complete(state)
+                awaitCancellation()
             }
-            try {
-                test(ready.await())
-            } finally {
-                connection.cancel()
-            }
+        }
+        try {
+            test(ready.await())
+        } finally {
+            connection.cancel()
         }
     }
 
@@ -132,7 +128,10 @@ class BlinkyManagerTest {
         // Give the collector time to subscribe.
         delay(INIT_TIME)
 
+        // The button state is a StateFlow, so a press and release in the same instant would be
+        // conflated. A real click takes some time.
         blinkyState.buttonState = true
+        delay(100)
         blinkyState.buttonState = false
 
         assertEquals(Unit, pressed.await())
@@ -149,20 +148,19 @@ class BlinkyManagerTest {
     }
 
     @Test
-    fun deviceWithoutLbs_isNotSupported() {
-        runBlocking {
-            withTimeout(timeout) {
-                assertFailsWith<BlinkyException.NotSupported> {
-                    managerFor(HRM_ID).connect { fail("Profile must not be ready") }
-                }
-            }
+    fun deviceWithoutLbs_isNotSupported() = runTest {
+        createCentralManager()
+
+        assertFailsWith<BlinkyException.NotSupported> {
+            managerFor(HRM_ID).connect { fail("Profile must not be ready") }
         }
     }
 
     private companion object {
         const val BLINKY_ID = "AA:BB:CC:DD:EE:FF"
+        const val HRM_ID = "01:23:45:67:89:AB"
+
         /** Time given to the profile to read the initial state and subscribe. */
         const val INIT_TIME = 500L
-        const val HRM_ID = "01:23:45:67:89:AB"
     }
 }
