@@ -17,12 +17,16 @@ default_platform(:android)
 
 platform :android do
 
-  desc "Deploy build to Internal channel."
-    lane :deployInternal do
-      gradle(task: "clean bundleRelease")
-      upload_to_play_store(
-        track: 'internal',
-      )
+  desc "Deploy build to Internal channel. With dry_run:true the bundle is only validated by Google Play."
+  lane :deployInternal do |options|
+    # Only the native flavor is released. The mock flavor is for development and tests.
+    gradle(task: "clean bundleNativeRelease")
+    upload_to_play_store(
+      track: 'internal',
+      aab: 'app/build/outputs/bundle/nativeRelease/app-native-release.aab',
+      validate_only: options[:dry_run].to_s == "true"
+    )
   end
+
 
 end
