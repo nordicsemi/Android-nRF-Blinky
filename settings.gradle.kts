@@ -21,7 +21,7 @@ dependencyResolutionManagement {
         }
         // Link: https://github.com/nordicsemi/Nordic-Version-Catalog
         create("nordic") {
-            from("no.nordicsemi.gradle:nordic-version-catalog:2026.08.00")
+            from("no.nordicsemi.gradle:nordic-version-catalog:2026.10.00")
         }
     }
 }
