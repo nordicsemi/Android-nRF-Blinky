@@ -11,6 +11,7 @@ import no.nordicsemi.kotlin.ble.client.android.CentralManager
 import no.nordicsemi.kotlin.ble.client.android.Peripheral
 import no.nordicsemi.kotlin.ble.client.exception.InvalidAttributeException
 import no.nordicsemi.kotlin.ble.core.ConnectionState.Disconnected.Reason
+import kotlin.coroutines.CoroutineContext
 
 /**
  * A Bluetooth LE implementation of the [Blinky] interface.
@@ -21,20 +22,23 @@ import no.nordicsemi.kotlin.ble.core.ConnectionState.Disconnected.Reason
  * Use [connect] to initiate the connection to the peripheral.
  * @param centralManager The central manager to use to connect to the peripheral.
  * @param peripheral The peripheral.
+ * @param context The coroutine context in which the connection is handled, defaults to
+ * [Dispatchers.IO]. Tests may pass a test dispatcher to use virtual time.
  */
 class BlinkyManager(
     private val centralManager: CentralManager,
     private val peripheral: Peripheral,
+    private val context: CoroutineContext = Dispatchers.IO,
 ): Blinky {
 
     override suspend fun connect(
         block: suspend CoroutineScope.(Blinky.State) -> Unit,
-    ): Unit = withContext(Dispatchers.IO) {
+    ): Unit = withContext(context) {
         // First, install the LBS profile.
         //
         // Note, that in this implementation the profile is installed before creating the connection,
         // but these can be swapped.
-        val ledButtonProfile = LedButtonProfileImpl(block)
+        val ledButtonProfile = LedButtonProfileImpl(context, block)
         peripheral.profile(ledButtonProfile)
 
         // Initiate connection, if not connected already.

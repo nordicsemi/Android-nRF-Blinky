@@ -1,7 +1,6 @@
 package no.nordicsemi.android.blinky.ble
 
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -25,13 +24,16 @@ import no.nordicsemi.kotlin.ble.client.exception.InvalidAttributeException
 import no.nordicsemi.kotlin.ble.client.exception.OperationFailedException
 import no.nordicsemi.kotlin.ble.core.exception.BluetoothException
 import timber.log.Timber
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Implementation of the [Blinky.State] interface for the LED Button Service (LBS).
  *
+ * @param context The coroutine context in which the initial state is read and observed.
  * @param onReady A callback called when the profile is initialized.
  */
 internal class LedButtonProfileImpl(
+    private val context: CoroutineContext,
     private val onReady: suspend CoroutineScope.(Blinky.State) -> Unit,
 ): Profile.Simple(
     serviceUuid = BlinkySpec.SERVICE_UUID,
@@ -122,7 +124,7 @@ internal class LedButtonProfileImpl(
     override suspend fun CoroutineScope.initialize(peripheral: Peripheral<*, *>) {
         // Read the initial state of the LED and Button and start the collectors in
         // a separate coroutine.
-        launch(Dispatchers.IO) {
+        launch(context) {
             readLed()
             readButton()
             initLedStateCollector()
