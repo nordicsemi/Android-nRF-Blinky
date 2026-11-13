@@ -27,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -131,7 +132,7 @@ class BlinkyManagerTest {
         // The button state is a StateFlow, so a press and release in the same instant would be
         // conflated. A real click takes some time.
         blinkyState.buttonState = true
-        delay(100)
+        delay(100.milliseconds)
         blinkyState.buttonState = false
 
         assertEquals(Unit, pressed.await())
@@ -161,6 +162,6 @@ class BlinkyManagerTest {
         const val HRM_ID = "01:23:45:67:89:AB"
 
         /** Time given to the profile to read the initial state and subscribe. */
-        const val INIT_TIME = 500L
+        val INIT_TIME = 500.milliseconds
     }
 }
